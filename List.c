@@ -1,0 +1,663 @@
+// Implementation of the String List ADT
+// TAKEN FROM LAB05, modified.   
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#include "List.h"
+#include "Graph.h"
+
+#define LENGTH 100
+
+typedef struct node *Node;
+
+struct node {
+    char *s;      
+    int index;
+    double PR;
+    double outdegree;
+    double indegree;
+    int match;
+    Node   next;    
+};   
+
+struct list {
+    Node   head;
+    Node   tail;
+    int    size;
+};
+
+// Free array 
+void ArrayFree(Node *a);
+
+// Selection sort alphabetically for pages with equal pagerank
+void SelSortAlpha(Node *a, int lo, int hi);
+
+// Find pages with equal pagerank and match
+void ArrayRank(Node *a);
+
+// Selection sort by pagerank
+void SelSortRank(Node *a, int lo, int hi);
+
+// Sort array by pagerank for the pages with equal match values
+void ArrayMatch(Node *a);
+
+// Prints out array 
+void ArrayPrint(Node *a);
+
+// Puts list into array 
+// Frees list and returns array
+Node *ListArray(List l);
+
+//Insert node into list in order by match value
+void ListInsertOrderMatch(List l, Node n);
+
+//Copies node to new node 
+Node NodeCopy(Node o);
+
+//Insert node into list in order
+void ListInsertOrder(List l, Node n);
+
+void ReadUrlRec(Node url, List l, Graph g);
+static Node newNode(char *s);
+static char *myStrdup(char *s);
+static int qsortStrcmp(const void *ptr1, const void *ptr2);
+
+////////////////////////////////////////////////////////////////////////
+
+// Free array 
+void ArrayFree(Node *a) {
+    int i;
+    for (i = 0; a[i]->match != -1; i++) {
+        free(a[i]->s);
+        free(a[i]);
+    }
+    free(a[i]->s);
+    free(a[i]);
+    free(a);
+}
+
+// Find pages with equal pagerank and match
+void ArrayRank(Node *a) {
+    if (a[0]->match == -1) {
+        printf("empty list\n");
+        return;
+    }
+    int c = 0; 
+    int e = 0;
+    int i = 1;
+    while (a[i]->match != -1) {   // Stop if reach stopper node     
+        for (i = e + 1; a[i]->match != -1; i++) { 
+        // Find equal-matched pages between index c and e 
+            if (a[i]->match != a[c]->match) {                
+                break;
+            } else {            
+                e = i;                
+            }
+        }
+        SelSortAlpha(a, c, e);
+        c = i;
+    }    
+}
+
+// Selection sort alphabetically for pages with equal pagerank
+void SelSortAlpha(Node *a, int lo, int hi) {
+    int i, j, max;
+    for (i = lo; i < hi; i++) {
+        max = i;
+        for (j = i + 1; j <= hi; j++) { // If equal pagerank, check alphabet
+            if (strcmp(a[j]->s, a[max]->s) <= 0 && a[j]->PR == a[max]->PR) { 
+                max = j;                
+            }             
+        }
+        
+        //Swap nodes
+        Node t; 
+        t = a[i];
+        a[i] = a[max];             
+        a[max] = t;
+    }
+}
+
+// Selection sort by pagerank for pages with equal match
+void SelSortRank(Node *a, int lo, int hi) {
+    int i, j, max;
+    for (i = lo; i < hi; i++) {
+        max = i;
+        for (j = i + 1; j <= hi; j++) { // Put bigger-ranked page first
+            if (a[j]->PR > a[max]->PR) {                
+                max = j;                
+            }             
+        }
+        Node t; 
+        t = a[i];
+        a[i] = a[max];             
+        a[max] = t;
+    }
+}
+
+// Find pages with equal match values
+void ArrayMatch(Node *a) {
+    if (a[0]->match == -1) {
+        printf("empty list\n");
+        return;
+    }
+    int c = 0; 
+    int e = 0;
+    int i = 1;
+    while (a[i]->match != -1) { // Loop until stopper         
+        for (i = e + 1; a[i]->match != -1; i++) { 
+        // Find equal-matched pages between index c and e
+            if (a[i]->match != a[c]->match) {                
+                break;
+            } else {            
+                e = i;                
+            }
+        }
+        SelSortRank(a, c, e); 
+        c = i;
+    }    
+}
+
+// Takes list, convert to array, orders it and prints it
+void ListPrintArray(List l) {
+    Node *n = ListArray(l);
+    ArrayMatch(n); 
+    ArrayRank(n);
+    ArrayPrint(n);  
+    ArrayFree(n);  
+}
+
+// Prints out array 
+void ArrayPrint(Node *a) {
+    for (int i = 0; a[i]->match != -1 && i < 30; i++) {
+        printf("%s\n", a[i]->s);
+    }
+}
+
+// Puts list into array 
+// Frees list and returns array
+Node *ListArray(List l) {
+    Node *array = malloc(sizeof(Node) * (l->size + 1));
+    Node c = l->head; 
+    int i = 0;      
+    while (c != NULL) {
+        Node n = NodeCopy(c);
+        array[i] = n;       
+        c = c->next;
+        i++;
+    }
+    Node stop = newNode("stopper"); // Insert stopper for array end
+    stop->match = -1;
+    array[i] = stop;
+    ListFree(l);
+    return array;
+}
+
+// Sets pagerank for each page in list from pagerankList 
+void ListSetRank(List l) {
+    FILE *fp = fopen("pagerankList.txt", "r");
+    char str[LENGTH + 1];
+    char str1[LENGTH];
+    while (fscanf(fp, "%s %*s %s", str, str1) != EOF) {
+        str[strlen(str) - 1] = '\0';
+        Node c = l->head;       
+        while (c != NULL) {
+            if (!strcmp(str, c->s)) {
+                c->PR = strtod(str1, NULL);            }
+            c = c->next;
+        }                
+    }
+    fclose(fp);
+}
+
+//Insert node into list in order by match value
+void ListInsertOrderMatch(List l, Node n) {
+    if (l->head == NULL) { //Insert into empty list
+        l->head = n; 
+        l->tail = n;
+    } else if (n->match >= l->head->match) { //Insert before head        
+        n->next = l->head;
+        l->head = n;          
+    } else if (n->match <= l->tail->match) { // After tail
+        l->tail->next = n;
+        l->tail = n;      
+    } else { // Middle
+        Node c = l->head;
+        while (c->next != NULL) {
+            if (n->match <= c->match && n->match > c->next->match) {
+                n->next = c->next;
+                c->next = n;  
+                break;              
+            }
+            c = c->next;
+        }
+    }
+    l->size++;
+}
+
+// Order list by match terms
+// Returns new list, frees original
+List ListOrderMatch(List l) {
+    List n = ListNew();
+    Node c = l->head;       
+    while (c != NULL) {
+        Node nn = NodeCopy(c);
+        ListInsertOrderMatch(n, nn);
+        c = c->next;
+    }
+    ListFree(l);
+    return n;
+}
+
+// Check if name already exists in list
+int ListCheck(List l, char *n) {
+    Node c = l->head;       
+    while (c != NULL) {
+        if (!strcmp(c->s, n)) {
+            c->match++;
+            return 0;
+        }
+        c = c->next;
+    }
+    return 1;
+}
+
+// Write list to file
+void ListWrite(List l) {
+    FILE *fp = fopen("pagerankList.txt", "w");
+    Node c = l->head;
+    while (c != NULL) {
+        fprintf(fp, "%s, %d, %.7lf\n", c->s, (int)(c->outdegree), c->PR);
+        c = c->next;
+    }
+    fclose(fp);
+}
+
+//Copies node to new node 
+Node NodeCopy(Node o) {
+    Node n = newNode(o->s);
+    n->index = o->index;
+    n->PR = o->PR;
+    n->outdegree = o->outdegree;
+    n->indegree = o->indegree;
+    n->match = o->match;
+    return n;
+}
+
+//Returns sorted list copy, frees original 
+List ListSortOrder(List l) {
+    List nl = ListNew();
+    Node c = l->head;       
+    while (c != NULL) { // n is copy of node c to be inserted into list nl    
+        Node n = NodeCopy(c);  
+        ListInsertOrder(nl, n);
+        c = c->next;
+    } 
+    ListFree(l);
+    return nl;
+}
+
+//Insert node into list in order by pagerank
+void ListInsertOrder(List l, Node n) {
+    if (l->head == NULL) { //Insert into empty list
+        l->head = n; 
+        l->tail = n;
+    } else if (n->PR >= l->head->PR) { //Insert before head
+        n->next = l->head;
+        l->head = n;        
+    } else if (n->PR <= l->tail->PR) { // After tail
+        l->tail->next = n;
+        l->tail = n;
+    } else { // Middle
+        Node c = l->head;
+        while (c->next != NULL) {
+            if (n->PR <= c->PR && n->PR > c->next->PR) {
+                n->next = c->next;
+                c->next = n;  
+                break;              
+            }
+            c = c->next;
+        }
+    }
+    l->size++;
+}
+
+// Print outdegrees for all pages in list
+void PrintOutdeg(List l) {
+    Node c = l->head;    
+    while (c != NULL) {
+        printf("outdegree for c %d is %lf\n", c->index, c->outdegree);
+        c = c->next;
+    }
+}
+// Returns sum of pagerank difference between 2 lists
+double DiffRank(List src, List dest) {
+    Node c = src->head;  
+    Node c1 = dest->head;
+    double sum = 0;
+    while (c != NULL) {
+        double diff = c1->PR - c->PR;
+        sum += fabs(diff);
+        c = c->next;
+        c1 = c1->next;
+    }
+    return sum;
+}
+
+// Print out every pagerank in list
+void PrintRank(List l) {
+    Node current = l->head;
+    while (current != NULL) {
+        printf("%.7lf ->", current->PR);
+        current = current->next;
+    }
+    printf("X \n");
+}
+
+// Find pageranks for every page in list
+void PageRank(List l, List dest, Graph win, Graph wout, double d) {
+    Node c = l->head;  // List to take pageranks from 
+    Node c2 = dest->head; // List to save new pageranks into 
+    double sum;  
+    for (int i = 0; i < GraphNumVertices(win); i++) { // Calculate pagerank for page i in list 
+        sum = 0;
+        for (int j = 0; j < GraphNumVertices(win); j++) { // Find pages pointing to i
+            double weightIn = GraphIsAdjacent(win, j, i);
+            if (weightIn) { // if there's a link
+                double weightOut = GraphIsAdjacent(wout, j, i);
+                Node c1 = l->head;
+                while (c1 != NULL) { // Find page pointing to i by index j
+                    if (c1->index == j) { // Add damping product to sum
+                        sum +=  c1->PR * weightIn * weightOut;                           
+                        break;     
+                    }
+                    c1 = c1->next;
+                }                                 
+            }
+        }
+        c2->PR = (1 - d) / l->size + d * sum; // Calculate rest of pagerank 
+        c = c->next; // Calculate pagerank for next page in list
+        c2 = c2->next;
+    }
+}
+
+// Create copy of list 
+// Node starting from head of list inserted at end of new list
+List ListCopy(List l) {
+    List newL = ListNew();
+    Node current = l->head;
+    while (current != NULL) {
+        Node n = newNode(current->s);
+        n->index = current->index;
+        n->PR = current->PR;
+        n->outdegree = current->outdegree;
+        n->indegree = current->indegree;
+        n->next = NULL;
+        
+        if (newL->head == NULL) { //Insert into new list 
+            newL->head = n;
+        } else {
+            newL->tail->next = n;
+        }
+        newL->tail = n;
+        newL->size++;
+        current = current->next;
+    }
+    return newL;
+}
+
+// Find in-weight and out-weight for every link 
+void calcWeight(Graph win, Graph wout, Graph g, List l) {
+    Node current = l->head;
+    for (int i = 0; i < GraphNumVertices(g); i++) { // i is page to be looked at        
+        for (int j = 0; j < GraphNumVertices(g); j++) {
+            double totalIn = 0;
+            double totalOut = 0;
+            if (GraphIsAdjacent(g, j, i)) { //There's a link, find win and wout for that one
+                for (int k = 0; k < GraphNumVertices(g); k++) {
+                    if (GraphIsAdjacent(g, j, k)) {
+                        Node current1 = l->head;
+                        while (current1 != NULL) { // Find total indegree
+                            if (current1->index == k) {
+                                totalIn += current1->indegree;
+                                if (current1->outdegree == 0) {
+                                    double temp = 0.5;
+                                    totalOut += temp;
+                                } else {
+                                    totalOut += current1->outdegree;
+                                }                                
+                            }
+                            current1 = current1->next;
+                        }        
+                    }
+                }                
+                double temp = current->outdegree;
+                if (current->outdegree == 0) {
+                    temp = 0.5;
+                }
+                double weightOut = temp / totalOut;
+                double weightIn = current->indegree / totalIn;                
+                Edge newOut = {newOut.v = j, newOut.w = i, newOut.weight = weightOut};
+                Edge newIn = {newIn.v = j, newIn.w = i, newIn.weight = weightIn};
+                GraphInsertEdge(wout, newOut);
+                GraphInsertEdge(win, newIn);                                
+            }                
+        }                
+        current = current->next;
+    }
+}
+
+// Find outdegree and indegree for every page (indexed in graph)
+void FindWeight(Graph g, List l) {
+    Node current = l->head;
+    while (current != NULL) {
+        for (int i = 0; i < GraphNumVertices(g); i++) {
+            current->indegree += GraphIsAdjacent(g, i, current->index);
+            current->outdegree += GraphIsAdjacent(g, current->index, i);                        
+        }
+        current = current->next;
+    }   
+}
+
+// Find index by name for url in list
+// Return index
+int FindIndex(char *s, List l) {
+    Node current = l->head;
+    while (current != NULL) {
+        if (!strcmp(current->s, s)) {
+            return current->index;
+        }
+        current = current->next;
+    }
+    printf("Can't find url, error dude\n");
+    return -1;
+}
+
+// Orders list node indexes and sets page rank to 1 / N
+void ListIndexPR(List l) {
+    Node current = l->head;
+    int index = 0;
+    while (current != NULL) {
+        current->index = index;
+        current->PR = 1 / (double)(l->size);
+        index++;
+        current = current->next;
+    }
+}
+
+// Takes in list and
+// Reads in urls inside each url 
+void ReadUrl(List l, Graph g) {
+    ReadUrlRec(l->head, l, g);
+}
+
+//Recursive for ReadUrl
+void ReadUrlRec(Node url, List l, Graph g) {
+    if (url == NULL) {
+        return;
+    } 
+    char file[LENGTH + 5];
+    strcpy(file, url->s);
+    strcat(file, ".txt");
+    FILE *fp = fopen(file, "r");
+    char str[LENGTH + 5];
+    while (fscanf(fp, "%s", str) != EOF) {
+        if (str[0] != '#' && strcmp(str, "Section-1")) {           
+            if (strcmp(str, url->s)) {
+                Edge new = {new.v = url->index, new.w = FindIndex(str, l), new.weight = 1};
+                GraphInsertEdge(g, new);                
+            }                      
+        } else if (!strcmp(str, "#end")) {
+            break;
+        }
+    }
+    fclose(fp);   
+    ReadUrlRec(url->next, l, g);
+}
+
+// Creates a new empty list
+List ListNew(void) {
+    List l = malloc(sizeof(*l));
+    if (l == NULL) {
+        fprintf(stderr, "error: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    l->head = NULL;
+    l->tail = NULL;
+    l->size = 0;
+    return l;
+}
+
+// Frees all memory allocated for the given list
+void ListFree(List l) {
+    Node curr = l->head;
+    while (curr != NULL) {
+        Node temp = curr;
+        curr = curr->next;
+        free(temp->s);
+        free(temp);
+    }
+    free(l);
+}
+
+// Adds a string to the end of the list
+void ListAppend(List l, char *s) {
+    Node n = newNode(s);
+    if (l->head == NULL) {
+        l->head = n;
+    } else {
+        l->tail->next = n;
+    }
+    l->tail = n;
+    l->size++;
+}
+
+static Node newNode(char *s) {
+    Node n = malloc(sizeof(*n));
+    if (n == NULL) {
+        fprintf(stderr, "error: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    n->indegree = 0;
+    n->outdegree = 0;
+    n->PR = 0;
+    n->index = 0;    
+    n->s = myStrdup(s);
+    n->next = NULL;
+    n->match = 1;
+    return n;
+}
+
+static char *myStrdup(char *s) {
+    char *copy = malloc((strlen(s) + 1) * sizeof(char));
+    if (copy == NULL) {
+        fprintf(stderr, "error: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    return strcpy(copy, s);
+}
+
+// Returns the number of items in the list
+int  ListSize(List l) {
+    return l->size;
+}
+
+// Sorts the list in ASCII order
+void ListSort(List l) {
+    char **items = malloc(l->size * sizeof(char *));
+    if (items == NULL) {
+        fprintf(stderr, "error: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    int i = 0;
+    for (Node curr = l->head; curr != NULL; curr = curr->next) {
+        items[i++] = curr->s;
+    }
+    qsort(items, l->size, sizeof(char *), qsortStrcmp);
+    i = 0;
+    for (Node curr = l->head; curr != NULL; curr = curr->next) {
+        curr->s = items[i++];
+    }
+    free(items);
+}
+
+static int qsortStrcmp(const void *ptr1, const void *ptr2) {
+    char *s1 = *(char **)ptr1;
+    char *s2 = *(char **)ptr2;
+    return strcmp(s1, s2);
+}
+
+// Prints the list, one string per line
+// If the strings themselves contain newlines, too bad
+void ListPrint(List l) {
+    for (Node n = l->head; n != NULL; n = n->next) {
+        printf("match is %d, pr is %lf\n", n->match, n->PR);
+        printf("%s\n", n->s);        
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+
+struct listIterator {
+    Node curr;
+    List list;
+};
+
+// Creates an iterator for the given list
+ListIterator ListItNew(List l) {
+    ListIterator it = malloc(sizeof(*it));
+    if (it == NULL) {
+        fprintf(stderr, "error: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+
+    it->curr = l->head;
+    it->list = l;
+    return it;
+}
+
+// Gets the next item in the list. The item should not be modified.
+char *ListItNext(ListIterator it) {
+    if (it->curr == NULL) {
+        fprintf(stderr, "error: no more items in iterator!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    char *item = it->curr->s;
+    it->curr = it->curr->next;
+    return item;
+}
+
+// Checks if the list has a next item
+bool ListItHasNext(ListIterator it) {
+    return it->curr != NULL;
+}
+
+// Frees the given iterator
+void ListItFree(ListIterator it) {
+    free(it);
+}
+

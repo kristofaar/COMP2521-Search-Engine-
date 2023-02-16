@@ -1,0 +1,22 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "List.h"
+#include "Graph.h"
+
+typedef struct page *Page;
+
+//Return list of url from collection.txt
+//Need to free list later on
+List GetCollection();
+
+// Puts list into graph
+// Returns graph
+Graph GetGraph(List l);
+
+//Return rankpaged list 
+List calculatePageRank(Graph g, double d, double diffPR, int maxIterations, List l);
+
+// Reads in matching urls for given terms 
+// Then inserts into and returns list
+List ListTerms(int argc, char **argv);

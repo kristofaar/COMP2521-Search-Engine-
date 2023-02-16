@@ -1,0 +1,41 @@
+// COMP2521 Assignment 2
+
+// Written by: Chris Tsang z5310212
+// Date: 17/11/2021
+
+#include <assert.h>
+#include <ctype.h>
+#include <math.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "readData.h"
+#include "List.h"
+#include "Graph.h"
+
+int main(int argc, char *argv[]) {
+    
+    //Collect urls
+    List urls = GetCollection();     
+    Graph links = GetGraph(urls); 
+    
+    // Calculate pagerank
+    double d = atof(argv[1]);
+    double diffPR = atof(argv[2]);
+    int maxIterations = atof(argv[3]);    
+    List urls_pageranked = calculatePageRank(links, d, diffPR, maxIterations, urls);   
+    List urls_pageranked_sort = ListSortOrder(urls_pageranked);
+    
+    ListWrite(urls_pageranked_sort); // Write list to file
+      
+    GraphFree(links);
+    ListFree(urls_pageranked_sort);
+}
+
+
+
+
+
+
